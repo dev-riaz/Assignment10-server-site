@@ -255,6 +255,31 @@ async function run() {
             }
         });
 
+        // like api
+        app.patch("/api/recipe/like/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                const result = await myRecipeCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    {
+                        $inc: {
+                            likesCount: 1,
+                        },
+                    }
+                );
+
+                res.send({
+                    success: true,
+                    message: "Recipe liked successfully",
+                });
+            } catch (error) {
+                res.status(500).send({
+                    success: false,
+                    message: error.message,
+                });
+            }
+        });
         // await client.connect();
 
         // await client.db("admin").command({ ping: 1 });
