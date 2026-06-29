@@ -118,7 +118,39 @@ async function run() {
         });
 
         
-      
+        app.delete("/api/recipe/:id", async (req, res) => {
+            try {
+                const id = req.params.id;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid recipe id",
+                    });
+                }
+
+                const result = await myRecipeCollection.deleteOne({
+                    _id: new ObjectId(id),
+                });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).json({
+                        success: false,
+                        message: "Recipe not found",
+                    });
+                }
+
+                res.status(200).json({
+                    success: true,
+                    message: "Recipe deleted successfully",
+                });
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    message: error.message,
+                });
+            }
+        });
 
         // await client.connect();
 
