@@ -53,6 +53,27 @@ async function run() {
             }
         });
 
+        app.get("/api/myRecipe/:email", async (req, res) => {
+            try {
+                const email = req.params.email;
+
+                const result = await myRecipeCollection
+                    .find({ authorEmail: email })
+                    .sort({ createdAt: -1 })
+                    .toArray();
+
+                res.status(200).json({
+                    success: true,
+                    data: result,
+                });
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    message: error.message,
+                });
+            }
+        });
+
         // await client.connect();
 
         // await client.db("admin").command({ ping: 1 });
