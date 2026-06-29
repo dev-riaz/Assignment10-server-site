@@ -1,5 +1,5 @@
 const express = require('express');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const dotenv = require('dotenv');
 dotenv.config()
 const cors = require('cors');
@@ -73,6 +73,52 @@ async function run() {
                 });
             }
         });
+
+      
+        app.patch("/api/recipe/:id", async (req, res) => {
+            try {
+                const id = req.params.id;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid recipe id",
+                    });
+                }
+
+                const updateDoc = {
+                    ...req.body,
+                    updatedAt: new Date(),
+                };
+
+                delete updateDoc._id; // _id কখনো ওভাররাইট করা যাবে না
+
+                const result = await myRecipeCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: updateDoc }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({
+                        success: false,
+                        message: "Recipe not found",
+                    });
+                }
+
+                res.status(200).json({
+                    success: true,
+                    message: "Recipe updated successfully",
+                });
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    message: error.message,
+                });
+            }
+        });
+
+        
+      
 
         // await client.connect();
 
