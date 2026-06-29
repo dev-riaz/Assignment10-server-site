@@ -74,7 +74,7 @@ async function run() {
             }
         });
 
-      
+
         app.patch("/api/recipe/:id", async (req, res) => {
             try {
                 const id = req.params.id;
@@ -117,7 +117,7 @@ async function run() {
             }
         });
 
-        
+
         app.delete("/api/recipe/:id", async (req, res) => {
             try {
                 const id = req.params.id;
@@ -143,6 +143,75 @@ async function run() {
                 res.status(200).json({
                     success: true,
                     message: "Recipe deleted successfully",
+                });
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    message: error.message,
+                });
+            }
+        });
+
+        app.get("/api/recipes", async (req, res) => {
+            try {
+                const {
+                    page = 1,
+                    limit = 6,
+                    search = "",
+                    category = "",
+                    cuisineType = "",
+                    difficultyLevel = "",
+                    sortBy = "",
+                } = req.query;
+
+                const pageNum = parseInt(page);
+                const limitNum = parseInt(limit);
+
+                // ── Filter ──
+                const filter = { status: "Published" };
+
+                if (search) {
+                    filter.recipeName = { $regex: search, $options: "i" };
+                }
+                if (category) {
+                    filter.category = category;
+                }
+                if (cuisineType) {
+                    filter.cuisineType = cuisineType;
+                }
+                if (difficultyLevel) {
+                    filter.difficultyLevel = difficultyLevel;
+                }
+
+                // ── Sort ──
+                const sort = {};
+                if (sortBy === "Most Liked") {
+                    sort.likesCount = -1;
+                } else if (sortBy === "Newest") {
+                    sort.createdAt = -1;
+                } else if (sortBy === "Cook Time") {
+                    sort.preparationTime = 1;
+                } else {
+                    sort.createdAt = -1; // default
+                }
+
+                // ── Pagination ──
+                const total = await myRecipeCollection.countDocuments(filter);
+                const totalPages = Math.ceil(total / limitNum);
+
+                const result = await myRecipeCollection
+                    .find(filter)
+                    .sort(sort)
+                    .skip((pageNum - 1) * limitNum)
+                    .limit(limitNum)
+                    .toArray();
+
+                res.status(200).json({
+                    success: true,
+                    data: result,
+                    total,
+                    totalPages,
+                    currentPage: pageNum,
                 });
             } catch (error) {
                 res.status(500).json({
