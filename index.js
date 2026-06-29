@@ -221,6 +221,40 @@ async function run() {
             }
         });
 
+        app.get("/api/recipe/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid recipe id",
+                    });
+                }
+
+                const recipe = await myRecipeCollection.findOne({
+                    _id: new ObjectId(id),
+                });
+
+                if (!recipe) {
+                    return res.status(404).json({
+                        success: false,
+                        message: "Recipe not found",
+                    });
+                }
+
+                res.status(200).json({
+                    success: true,
+                    data: recipe,
+                });
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    message: error.message,
+                });
+            }
+        });
+
         // await client.connect();
 
         // await client.db("admin").command({ ping: 1 });
