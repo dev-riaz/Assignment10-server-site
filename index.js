@@ -9,9 +9,6 @@ const port = process.env.PORT;
 app.use(cors())
 app.use(express.json())
 
-
-
-
 const uri = process.env.MONGO_DB_URI;
 
 const client = new MongoClient(uri, {
@@ -27,12 +24,15 @@ async function run() {
         const db = client.db("assignment10")
         const userCollection = db.collection("user")
         const myRecipeCollection = db.collection("myRecipe")
+        const favoriteCollection = db.collection("favorites");
 
-
+        // ── Add Recipe ──
         app.post("/api/recipe", async (req, res) => {
             try {
                 const recipeData = {
                     ...req.body,
+                    likesCount: 0,
+                    likedBy: [],
                     createdAt: new Date(),
                     updatedAt: new Date(),
                 };
@@ -44,15 +44,12 @@ async function run() {
                     insertedId: result.insertedId,
                     message: "Recipe added successfully",
                 });
-
             } catch (error) {
-                res.status(500).json({
-                    success: false,
-                    message: error.message,
-                });
+                res.status(500).json({ success: false, message: error.message });
             }
         });
 
+        // ── Get My Recipes by Email ──
         app.get("/api/myRecipe/:email", async (req, res) => {
             try {
                 const email = req.params.email;
@@ -62,36 +59,23 @@ async function run() {
                     .sort({ createdAt: -1 })
                     .toArray();
 
-                res.status(200).json({
-                    success: true,
-                    data: result,
-                });
+                res.status(200).json({ success: true, data: result });
             } catch (error) {
-                res.status(500).json({
-                    success: false,
-                    message: error.message,
-                });
+                res.status(500).json({ success: false, message: error.message });
             }
         });
 
-
+        // ── Update Recipe ──
         app.patch("/api/recipe/:id", async (req, res) => {
             try {
                 const id = req.params.id;
 
                 if (!ObjectId.isValid(id)) {
-                    return res.status(400).json({
-                        success: false,
-                        message: "Invalid recipe id",
-                    });
+                    return res.status(400).json({ success: false, message: "Invalid recipe id" });
                 }
 
-                const updateDoc = {
-                    ...req.body,
-                    updatedAt: new Date(),
-                };
-
-                delete updateDoc._id; // _id কখনো ওভাররাইট করা যাবে না
+                const updateDoc = { ...req.body, updatedAt: new Date() };
+                delete updateDoc._id;
 
                 const result = await myRecipeCollection.updateOne(
                     { _id: new ObjectId(id) },
@@ -99,59 +83,37 @@ async function run() {
                 );
 
                 if (result.matchedCount === 0) {
-                    return res.status(404).json({
-                        success: false,
-                        message: "Recipe not found",
-                    });
+                    return res.status(404).json({ success: false, message: "Recipe not found" });
                 }
 
-                res.status(200).json({
-                    success: true,
-                    message: "Recipe updated successfully",
-                });
+                res.status(200).json({ success: true, message: "Recipe updated successfully" });
             } catch (error) {
-                res.status(500).json({
-                    success: false,
-                    message: error.message,
-                });
+                res.status(500).json({ success: false, message: error.message });
             }
         });
 
-
+        // ── Delete Recipe ──
         app.delete("/api/recipe/:id", async (req, res) => {
             try {
                 const id = req.params.id;
 
                 if (!ObjectId.isValid(id)) {
-                    return res.status(400).json({
-                        success: false,
-                        message: "Invalid recipe id",
-                    });
+                    return res.status(400).json({ success: false, message: "Invalid recipe id" });
                 }
 
-                const result = await myRecipeCollection.deleteOne({
-                    _id: new ObjectId(id),
-                });
+                const result = await myRecipeCollection.deleteOne({ _id: new ObjectId(id) });
 
                 if (result.deletedCount === 0) {
-                    return res.status(404).json({
-                        success: false,
-                        message: "Recipe not found",
-                    });
+                    return res.status(404).json({ success: false, message: "Recipe not found" });
                 }
 
-                res.status(200).json({
-                    success: true,
-                    message: "Recipe deleted successfully",
-                });
+                res.status(200).json({ success: true, message: "Recipe deleted successfully" });
             } catch (error) {
-                res.status(500).json({
-                    success: false,
-                    message: error.message,
-                });
+                res.status(500).json({ success: false, message: error.message });
             }
         });
 
+        // ── Get All Recipes (with filter, sort, pagination) ──
         app.get("/api/recipes", async (req, res) => {
             try {
                 const {
@@ -167,35 +129,19 @@ async function run() {
                 const pageNum = parseInt(page);
                 const limitNum = parseInt(limit);
 
-                // ── Filter ──
                 const filter = { status: "Published" };
 
-                if (search) {
-                    filter.recipeName = { $regex: search, $options: "i" };
-                }
-                if (category) {
-                    filter.category = category;
-                }
-                if (cuisineType) {
-                    filter.cuisineType = cuisineType;
-                }
-                if (difficultyLevel) {
-                    filter.difficultyLevel = difficultyLevel;
-                }
+                if (search) filter.recipeName = { $regex: search, $options: "i" };
+                if (category) filter.category = category;
+                if (cuisineType) filter.cuisineType = cuisineType;
+                if (difficultyLevel) filter.difficultyLevel = difficultyLevel;
 
-                // ── Sort ──
                 const sort = {};
-                if (sortBy === "Most Liked") {
-                    sort.likesCount = -1;
-                } else if (sortBy === "Newest") {
-                    sort.createdAt = -1;
-                } else if (sortBy === "Cook Time") {
-                    sort.preparationTime = 1;
-                } else {
-                    sort.createdAt = -1; // default
-                }
+                if (sortBy === "Most Liked") sort.likesCount = -1;
+                else if (sortBy === "Newest") sort.createdAt = -1;
+                else if (sortBy === "Cook Time") sort.preparationTime = 1;
+                else sort.createdAt = -1;
 
-                // ── Pagination ──
                 const total = await myRecipeCollection.countDocuments(filter);
                 const totalPages = Math.ceil(total / limitNum);
 
@@ -214,84 +160,145 @@ async function run() {
                     currentPage: pageNum,
                 });
             } catch (error) {
-                res.status(500).json({
-                    success: false,
-                    message: error.message,
-                });
+                res.status(500).json({ success: false, message: error.message });
             }
         });
 
+        // ── Get Single Recipe by ID ──
         app.get("/api/recipe/:id", async (req, res) => {
             try {
                 const { id } = req.params;
 
                 if (!ObjectId.isValid(id)) {
-                    return res.status(400).json({
-                        success: false,
-                        message: "Invalid recipe id",
-                    });
+                    return res.status(400).json({ success: false, message: "Invalid recipe id" });
                 }
 
-                const recipe = await myRecipeCollection.findOne({
-                    _id: new ObjectId(id),
-                });
+                const recipe = await myRecipeCollection.findOne({ _id: new ObjectId(id) });
 
                 if (!recipe) {
-                    return res.status(404).json({
-                        success: false,
-                        message: "Recipe not found",
-                    });
+                    return res.status(404).json({ success: false, message: "Recipe not found" });
                 }
 
-                res.status(200).json({
-                    success: true,
-                    data: recipe,
-                });
+                res.status(200).json({ success: true, data: recipe });
             } catch (error) {
-                res.status(500).json({
-                    success: false,
-                    message: error.message,
-                });
+                res.status(500).json({ success: false, message: error.message });
             }
         });
 
-        // like api
+        
+        // ── Like Recipe ──
         app.patch("/api/recipe/like/:id", async (req, res) => {
             try {
                 const { id } = req.params;
 
-                const result = await myRecipeCollection.updateOne(
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ success: false, message: "Invalid recipe id" });
+                }
+
+                const recipe = await myRecipeCollection.findOne({ _id: new ObjectId(id) });
+
+                if (!recipe) {
+                    return res.status(404).json({ success: false, message: "Recipe not found" });
+                }
+
+                await myRecipeCollection.updateOne(
                     { _id: new ObjectId(id) },
-                    {
-                        $inc: {
-                            likesCount: 1,
-                        },
-                    }
+                    { $inc: { likesCount: 1 } }
                 );
 
-                res.send({
-                    success: true,
-                    message: "Recipe liked successfully",
-                });
+                res.status(200).json({ success: true, message: "Recipe liked successfully" });
             } catch (error) {
-                res.status(500).send({
-                    success: false,
-                    message: error.message,
-                });
+                res.status(500).json({ success: false, message: error.message });
             }
         });
-        // await client.connect();
 
-        // await client.db("admin").command({ ping: 1 });
+        // ── Unlike Recipe ──
+        app.patch("/api/recipe/unlike/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ success: false, message: "Invalid recipe id" });
+                }
+
+                const recipe = await myRecipeCollection.findOne({ _id: new ObjectId(id) });
+
+                if (!recipe) {
+                    return res.status(404).json({ success: false, message: "Recipe not found" });
+                }
+
+                await myRecipeCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $inc: { likesCount: -1 } }
+                );
+
+                res.status(200).json({ success: true, message: "Recipe unliked successfully" });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+        // ── Add Favorite ──
+        app.post("/api/favorites", async (req, res) => {
+            try {
+                const favorite = req.body;
+
+                if (!favorite.recipeId) {
+                    return res.status(400).json({ success: false, message: "recipeId is required" });
+                }
+
+
+                const result = await favoriteCollection.insertOne({
+                    ...favorite,
+                    createdAt: new Date(),
+                });
+
+                res.status(201).json({ success: true, insertedId: result.insertedId });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+        // ── Get Favorites by Email ──
+        app.get("/api/favorites/:email", async (req, res) => {
+            try {
+                const result = await favoriteCollection
+                    .find({ userEmail: req.params.email })
+                    .sort({ createdAt: -1 })
+                    .toArray();
+
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+        // ── Remove Favorite ──
+        app.delete("/api/favorites/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ success: false, message: "Invalid favorite id" });
+                }
+
+                const result = await favoriteCollection.deleteOne({ _id: new ObjectId(id) });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).json({ success: false, message: "Favorite not found" });
+                }
+
+                res.status(200).json({ success: true, message: "Favorite removed successfully" });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
-
         // await client.close();
     }
 }
 run().catch(console.dir);
-
-
 
 app.get('/', (req, res) => {
     res.send('Hello World!');
