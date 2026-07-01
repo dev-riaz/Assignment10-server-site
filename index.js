@@ -185,7 +185,7 @@ async function run() {
             }
         });
 
-        
+
         // ── Like Recipe ──
         app.patch("/api/recipe/like/:id", async (req, res) => {
             try {
@@ -237,15 +237,68 @@ async function run() {
                 res.status(500).json({ success: false, message: error.message });
             }
         });
+
+        // ── Get User by ID (author profile info) ──
+        app.get("/api/user/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ success: false, message: "Invalid user id" });
+                }
+
+                const user = await userCollection.findOne(
+                    { _id: new ObjectId(id) },
+                    { projection: { image: 1, name: 1, email: 1 } }
+                );
+
+                if (!user) {
+                    return res.status(404).json({ success: false, message: "User not found" });
+                }
+
+                res.status(200).json({ success: true, data: user });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+        // ── Get User by Email (fallback for author profile) ──
+        app.get("/api/user/by-email/:email", async (req, res) => {
+            try {
+                const { email } = req.params;
+
+                const user = await userCollection.findOne(
+                    { email },
+                    { projection: { image: 1, name: 1, email: 1 } }
+                );
+
+                if (!user) {
+                    return res.status(404).json({ success: false, message: "User not found" });
+                }
+
+                res.status(200).json({ success: true, data: user });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
         // ── Add Favorite ──
         app.post("/api/favorites", async (req, res) => {
             try {
                 const favorite = req.body;
 
-                if (!favorite.recipeId) {
-                    return res.status(400).json({ success: false, message: "recipeId is required" });
+                if (!favorite.recipeId || !favorite.userEmail) {
+                    return res.status(400).json({ success: false, message: "recipeId and userEmail are required" });
                 }
 
+                const existing = await favoriteCollection.findOne({
+                    recipeId: favorite.recipeId,
+                    userEmail: favorite.userEmail,
+                });
+
+                if (existing) {
+                    return res.status(409).json({ success: false, message: "Already favorited" });
+                }
 
                 const result = await favoriteCollection.insertOne({
                     ...favorite,
@@ -292,6 +345,8 @@ async function run() {
                 res.status(500).json({ success: false, message: error.message });
             }
         });
+
+
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
