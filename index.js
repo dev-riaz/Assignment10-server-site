@@ -248,7 +248,7 @@ async function run() {
         });
 
         // ── Unlike Recipe ──
-        app.patch("/api/recipe/unlike/:id", checkBlocked, async (req, res) => {
+        app.patch("/api/recipe/unlike/:id",async (req, res) => {
             try {
                 const { id } = req.params;
                 const { userEmail } = req.body;
