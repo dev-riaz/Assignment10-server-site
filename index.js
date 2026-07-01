@@ -305,11 +305,40 @@ async function run() {
         app.get("/api/admin/users", async (req, res) => {
             try {
                 const result = await userCollection
-                    .find({}, { projection: { password: 0 } }) 
+                    .find({}, { projection: { password: 0 } })
                     .sort({ createdAt: -1 })
                     .toArray();
 
                 res.status(200).json({ success: true, data: result, total: result.length });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+        // ── Block / Unblock User (Admin) ──
+        app.patch("/api/admin/users/:id/status", async (req, res) => {
+            try {
+                const { id } = req.params;
+                const { status } = req.body; // "Active" or "Blocked"
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ success: false, message: "Invalid user id" });
+                }
+
+                if (!["Active", "Blocked"].includes(status)) {
+                    return res.status(400).json({ success: false, message: "Invalid status value" });
+                }
+
+                const result = await userCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { status } }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ success: false, message: "User not found" });
+                }
+
+                res.status(200).json({ success: true, message: `User ${status.toLowerCase()} successfully` });
             } catch (error) {
                 res.status(500).json({ success: false, message: error.message });
             }
