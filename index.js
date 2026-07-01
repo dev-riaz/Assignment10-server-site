@@ -25,6 +25,7 @@ async function run() {
         const userCollection = db.collection("user")
         const myRecipeCollection = db.collection("myRecipe")
         const favoriteCollection = db.collection("favorites");
+        const paymentCollection = db.collection("payments");
 
         // ── Add Recipe ──
         app.post("/api/recipe", async (req, res) => {
@@ -190,9 +191,13 @@ async function run() {
         app.patch("/api/recipe/like/:id", async (req, res) => {
             try {
                 const { id } = req.params;
+                const { userEmail } = req.body;
 
                 if (!ObjectId.isValid(id)) {
                     return res.status(400).json({ success: false, message: "Invalid recipe id" });
+                }
+                if (!userEmail) {
+                    return res.status(400).json({ success: false, message: "userEmail is required" });
                 }
 
                 const recipe = await myRecipeCollection.findOne({ _id: new ObjectId(id) });
@@ -201,9 +206,16 @@ async function run() {
                     return res.status(404).json({ success: false, message: "Recipe not found" });
                 }
 
+                if (recipe.likedBy?.includes(userEmail)) {
+                    return res.status(409).json({ success: false, message: "Already liked" });
+                }
+
                 await myRecipeCollection.updateOne(
                     { _id: new ObjectId(id) },
-                    { $inc: { likesCount: 1 } }
+                    {
+                        $inc: { likesCount: 1 },
+                        $addToSet: { likedBy: userEmail },
+                    }
                 );
 
                 res.status(200).json({ success: true, message: "Recipe liked successfully" });
@@ -216,9 +228,13 @@ async function run() {
         app.patch("/api/recipe/unlike/:id", async (req, res) => {
             try {
                 const { id } = req.params;
+                const { userEmail } = req.body;
 
                 if (!ObjectId.isValid(id)) {
                     return res.status(400).json({ success: false, message: "Invalid recipe id" });
+                }
+                if (!userEmail) {
+                    return res.status(400).json({ success: false, message: "userEmail is required" });
                 }
 
                 const recipe = await myRecipeCollection.findOne({ _id: new ObjectId(id) });
@@ -229,7 +245,10 @@ async function run() {
 
                 await myRecipeCollection.updateOne(
                     { _id: new ObjectId(id) },
-                    { $inc: { likesCount: -1 } }
+                    {
+                        $inc: { likesCount: -1 },
+                        $pull: { likedBy: userEmail },
+                    }
                 );
 
                 res.status(200).json({ success: true, message: "Recipe unliked successfully" });
@@ -346,6 +365,56 @@ async function run() {
             }
         });
 
+        // ── Add Payment (Purchase Recipe) ──
+        app.post("/api/payments", async (req, res) => {
+            try {
+                const { recipeId, userId, userEmail, amount } = req.body;
+
+                if (!recipeId || !userEmail || !amount) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "recipeId, userEmail and amount are required",
+                    });
+                }
+
+                const transactionId = "TXN-" + Date.now() + "-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+                const paymentData = {
+                    recipeId,
+                    userId: userId || null,
+                    userEmail,
+                    amount,
+                    transactionId,
+                    paymentStatus: "Success",
+                    paidAt: new Date(),
+                };
+
+                const result = await paymentCollection.insertOne(paymentData);
+
+                res.status(201).json({
+                    success: true,
+                    insertedId: result.insertedId,
+                    transactionId,
+                    message: "Payment successful",
+                });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+        // ── Get My Purchases by Email ──
+        app.get("/api/payments/:email", async (req, res) => {
+            try {
+                const result = await paymentCollection
+                    .find({ userEmail: req.params.email })
+                    .sort({ paidAt: -1 })
+                    .toArray();
+
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
 
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
