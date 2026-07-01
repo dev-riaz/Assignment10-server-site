@@ -27,8 +27,31 @@ async function run() {
         const favoriteCollection = db.collection("favorites");
         const paymentCollection = db.collection("payments");
 
+        const checkBlocked = async (req, res, next) => {
+            try {
+                const email = req.body.userEmail || req.body.authorEmail;
+
+                if (!email) {
+                    return next(); // email na thakle skip (public route hote pare)
+                }
+
+                const user = await userCollection.findOne({ email });
+
+                if (user?.status === "Blocked") {
+                    return res.status(403).json({
+                        success: false,
+                        message: "Your account is blocked. Contact support.",
+                    });
+                }
+
+                next();
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        };
+
         // ── Add Recipe ──
-        app.post("/api/recipe", async (req, res) => {
+        app.post("/api/recipe", checkBlocked, async (req, res) => {
             try {
                 const recipeData = {
                     ...req.body,
@@ -188,7 +211,7 @@ async function run() {
 
 
         // ── Like Recipe ──
-        app.patch("/api/recipe/like/:id", async (req, res) => {
+        app.patch("/api/recipe/like/:id", checkBlocked, async (req, res) => {
             try {
                 const { id } = req.params;
                 const { userEmail } = req.body;
@@ -225,7 +248,7 @@ async function run() {
         });
 
         // ── Unlike Recipe ──
-        app.patch("/api/recipe/unlike/:id", async (req, res) => {
+        app.patch("/api/recipe/unlike/:id", checkBlocked, async (req, res) => {
             try {
                 const { id } = req.params;
                 const { userEmail } = req.body;
@@ -345,7 +368,7 @@ async function run() {
         });
 
         // ── Add Favorite ──
-        app.post("/api/favorites", async (req, res) => {
+        app.post("/api/favorites", checkBlocked, async (req, res) => {
             try {
                 const favorite = req.body;
 
