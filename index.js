@@ -248,7 +248,7 @@ async function run() {
         });
 
         // ── Unlike Recipe ──
-        app.patch("/api/recipe/unlike/:id",async (req, res) => {
+        app.patch("/api/recipe/unlike/:id", async (req, res) => {
             try {
                 const { id } = req.params;
                 const { userEmail } = req.body;
@@ -337,6 +337,29 @@ async function run() {
                 res.status(500).json({ success: false, message: error.message });
             }
         });
+
+
+        // ── Get All Recipes for Admin (no status filter, with search) ──
+        app.get("/api/admin/recipes", async (req, res) => {
+            try {
+                const { search = "", status = "", category = "" } = req.query;
+
+                const filter = {};
+                if (search) filter.recipeName = { $regex: search, $options: "i" };
+                if (status) filter.status = status;
+                if (category) filter.category = category;
+
+                const result = await myRecipeCollection
+                    .find(filter)
+                    .sort({ createdAt: -1 })
+                    .toArray();
+
+                res.status(200).json({ success: true, data: result, total: result.length });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
 
         // ── Block / Unblock User (Admin) ──
         app.patch("/api/admin/users/:id/status", async (req, res) => {
