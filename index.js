@@ -505,6 +505,72 @@ async function run() {
             }
         });
 
+        // ── Get All Transactions for Admin (with recipe name lookup + search) ──
+        app.get("/api/admin/payments", async (req, res) => {
+            try {
+                const { search = "", status = "" } = req.query;
+
+                const filter = {};
+                if (search) {
+                    filter.$or = [
+                        { userEmail: { $regex: search, $options: "i" } },
+                        { transactionId: { $regex: search, $options: "i" } },
+                    ];
+                }
+                if (status) filter.paymentStatus = status;
+
+                const result = await paymentCollection
+                    .aggregate([
+                        { $match: filter },
+                        {
+                            $addFields: {
+                                recipeObjId: {
+                                    $cond: [
+                                        { $eq: [{ $type: "$recipeId" }, "string"] },
+                                        { $toObjectId: "$recipeId" },
+                                        "$recipeId",
+                                    ],
+                                },
+                            },
+                        },
+                        {
+                            $lookup: {
+                                from: "myRecipe",
+                                localField: "recipeObjId",
+                                foreignField: "_id",
+                                as: "recipe",
+                            },
+                        },
+                        { $unwind: { path: "$recipe", preserveNullAndEmptyArrays: true } },
+                        { $sort: { paidAt: -1 } },
+                        {
+                            $project: {
+                                userEmail: 1,
+                                userId: 1,
+                                amount: 1,
+                                transactionId: 1,
+                                paymentStatus: 1,
+                                paidAt: 1,
+                                recipeName: "$recipe.recipeName",
+                            },
+                        },
+                    ])
+                    .toArray();
+
+                const totalRevenue = result
+                    .filter((t) => t.paymentStatus === "Success")
+                    .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+                res.status(200).json({
+                    success: true,
+                    data: result,
+                    total: result.length,
+                    totalRevenue,
+                });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
