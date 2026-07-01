@@ -301,6 +301,20 @@ async function run() {
             }
         });
 
+        // ── Get All Users (Admin) ──
+        app.get("/api/admin/users", async (req, res) => {
+            try {
+                const result = await userCollection
+                    .find({}, { projection: { password: 0 } }) 
+                    .sort({ createdAt: -1 })
+                    .toArray();
+
+                res.status(200).json({ success: true, data: result, total: result.length });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
         // ── Add Favorite ──
         app.post("/api/favorites", async (req, res) => {
             try {
