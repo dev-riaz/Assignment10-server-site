@@ -573,7 +573,7 @@ async function run() {
         });
 
         // ── Submit a Report (User) ──
-        app.post("/api/reports", checkBlocked, async (req, res) => {
+        app.post("/api/reports",async (req, res) => {
             try {
                 const { recipeId, recipeName, reportedByEmail, reportedByName, reason, message } = req.body;
 
