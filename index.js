@@ -26,6 +26,7 @@ async function run() {
         const myRecipeCollection = db.collection("myRecipe")
         const favoriteCollection = db.collection("favorites");
         const paymentCollection = db.collection("payments");
+        const reportCollection = db.collection("reports");
 
         const checkBlocked = async (req, res, next) => {
             try {
