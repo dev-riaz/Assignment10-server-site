@@ -361,6 +361,63 @@ async function run() {
             }
         });
 
+        // ── Toggle Featured (max 4, uses existing myRecipeCollection) ──
+        app.patch("/api/admin/recipes/:id/featured", async (req, res) => {
+            try {
+                const { id } = req.params;
+                const { isFeatured } = req.body;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ success: false, message: "Invalid recipe id" });
+                }
+
+                if (typeof isFeatured !== "boolean") {
+                    return res.status(400).json({ success: false, message: "isFeatured must be true or false" });
+                }
+
+                if (isFeatured) {
+                    const featuredCount = await myRecipeCollection.countDocuments({ isFeatured: true });
+                    if (featuredCount >= 4) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "Already 4 recipes are featured. Unfeature one first.",
+                        });
+                    }
+                }
+
+                const result = await myRecipeCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { isFeatured, updatedAt: new Date() } }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ success: false, message: "Recipe not found" });
+                }
+
+                res.status(200).json({
+                    success: true,
+                    message: `Recipe ${isFeatured ? "marked as featured" : "removed from featured"}`,
+                });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+        // ── Get Featured Recipes (Home page, public) ──
+        app.get("/api/recipes/featured", async (req, res) => {
+            try {
+                const result = await myRecipeCollection
+                    .find({ isFeatured: true, status: "Published" })
+                    .sort({ updatedAt: -1 })
+                    .limit(4)
+                    .toArray();
+
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
 
         // ── Block / Unblock User (Admin) ──
         app.patch("/api/admin/users/:id/status", async (req, res) => {
@@ -574,7 +631,7 @@ async function run() {
         });
 
         // ── Submit a Report (User) ──
-        app.post("/api/reports",async (req, res) => {
+        app.post("/api/reports", async (req, res) => {
             try {
                 const { recipeId, recipeName, reportedByEmail, reportedByName, reason, message } = req.body;
 
