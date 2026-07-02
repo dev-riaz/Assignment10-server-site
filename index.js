@@ -572,6 +572,133 @@ async function run() {
             }
         });
 
+        // ── Submit a Report (User) ──
+        app.post("/api/reports", checkBlocked, async (req, res) => {
+            try {
+                const { recipeId, recipeName, reportedByEmail, reportedByName, reason, message } = req.body;
+
+                if (!recipeId || !reportedByEmail || !message) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "recipeId, reportedByEmail and message are required",
+                    });
+                }
+
+                const reportData = {
+                    recipeId,
+                    recipeName: recipeName || "Unknown Recipe",
+                    reportedByEmail,
+                    reportedByName: reportedByName || "",
+                    reason: reason || "Other",
+                    message,
+                    status: "Pending", // Pending | Reviewed | Resolved | Dismissed
+                    createdAt: new Date(),
+                };
+
+                const result = await reportCollection.insertOne(reportData);
+
+                res.status(201).json({
+                    success: true,
+                    insertedId: result.insertedId,
+                    message: "Report submitted successfully",
+                });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+        // ── Get My Reports by Email (User) ──
+        app.get("/api/reports/:email", async (req, res) => {
+            try {
+                const result = await reportCollection
+                    .find({ reportedByEmail: req.params.email })
+                    .sort({ createdAt: -1 })
+                    .toArray();
+
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+        // ── Get All Reports (Admin, with search + status filter) ──
+        app.get("/api/admin/reports", async (req, res) => {
+            try {
+                const { search = "", status = "" } = req.query;
+
+                const filter = {};
+
+                if (search) {
+                    filter.$or = [
+                        { recipeName: { $regex: search, $options: "i" } },
+                        { reportedByEmail: { $regex: search, $options: "i" } },
+                        { message: { $regex: search, $options: "i" } },
+                    ];
+                }
+
+                if (status) filter.status = status;
+
+                const result = await reportCollection
+                    .find(filter)
+                    .sort({ createdAt: -1 })
+                    .toArray();
+
+                res.status(200).json({ success: true, data: result, total: result.length });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+        // ── Update Report Status (Admin) ──
+        app.patch("/api/admin/reports/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+                const { status } = req.body;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ success: false, message: "Invalid report id" });
+                }
+
+                if (!["Pending", "Reviewed", "Resolved", "Dismissed"].includes(status)) {
+                    return res.status(400).json({ success: false, message: "Invalid status value" });
+                }
+
+                const result = await reportCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { status } }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ success: false, message: "Report not found" });
+                }
+
+                res.status(200).json({ success: true, message: "Report status updated successfully" });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+        // ── Delete Report (Admin) ──
+        app.delete("/api/admin/reports/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ success: false, message: "Invalid report id" });
+                }
+
+                const result = await reportCollection.deleteOne({ _id: new ObjectId(id) });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).json({ success: false, message: "Report not found" });
+                }
+
+                res.status(200).json({ success: true, message: "Report deleted successfully" });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // await client.close();
